@@ -1,7 +1,33 @@
 #!/usr/bin/env python3
+
+# -*- coding: utf-8 -*-
+#
+# Copyright (c) 2014 Micomicona
+# a.sexto@micomicona.com
+# http://micomicona.com
+
+# This software is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+Command-line script to keep your audio files healthy.
+"""
+
 import glob
 import os
 import sys
+from rgain import rgcalc
+from rgain import rgio
 
 __author__ = 'micomicona'
 
@@ -31,9 +57,11 @@ def main(argv):
         elif arg.lower() in ("-g", "--replaygain"):
             if reading_arguments:
                 errors.append("Commands should be specified before file names (%s)" % arg)
-            commands.append(replay_gain)
+            commands.append(CommandReplayGain())
         elif arg.lower() in ("-r", "--recursive"):
             recursive = True;
+        elif arg.lower() in ("-v", "--view"):
+            commands.append(CommandView())
         else:
             reading_arguments = True
             arguments.append(arg)
@@ -51,18 +79,41 @@ def main(argv):
         print_usage()
         sys.exit(2)
 
+    folders_inspected = 0;
+    files_processed = 0
     if recursive:
         for path, dirs, files in os.walk("."):
-            print("PATH: " + path)
-            for argument in arguments:
-                for file in glob.glob(os.path.join(path, argument)):
-                    print("FILE: " + file)
+            folders_inspected += 1
+            files_processed += process_album(path, arguments, commands)
     else:
-        for argument in arguments:
-            for file in glob.glob(argument):
-                print("FILE: " + file)
+        folders_inspected += 1
+        files_processed += process_album(".", arguments, commands)
 
+    print("%i files processed, %i folders inspected" %(files_processed, folders_inspected))
     sys.exit(0)
+
+
+def process_album(path, arguments, commands):
+    album_files = []
+    files_processed = 0;
+    for argument in arguments:
+                for file in glob.glob(os.path.join(path, argument)):
+                    if file_type_supported(file):
+                        album_files.append(file)
+                        files_processed += 1
+    if len(album_files) == 0:
+        return 0
+    for command in commands:
+        if command.works_with_whole_album():
+            album_files = command.process_album(album_files)
+        if command.works_with_individual_tracks():
+            for counter, file in enumerate(album_files):
+                album_files[counter] = command.process_track(file)
+    return files_processed
+
+
+def file_type_supported(file):
+    return True
 
 
 def print_usage():
@@ -70,10 +121,50 @@ def print_usage():
     print('\nSupported commands:')
     print('  -g, --replaygain             Set ReplayGain values')
     print('  -r, --recursive              Recursively traverse directories (one album per directory)')
+    print('  -v, --view                   View track information')
 
 
-def replay_gain():
-    print("Calcular ReplayGain")
+class CommandReplayGain:
+    def __init__(self):
+        print("Calcular ReplayGain")
+
+    def works_with_whole_album(self):
+        return True
+
+    def works_with_individual_tracks(self):
+        return False
+
+    def process_album(self, files):
+        print("Calculating and updating album ReplayGain..." + str(files))
+        rg = rgcalc.ReplayGain(files, True)
+        rg.start()
+
+class CommandView:
+    def __init__(self):
+        print("View track information")
+
+    def works_with_whole_album(self):
+        return False
+
+    def works_with_individual_tracks(self):
+        return True
+
+    def process_track(self, file):
+        print("Filename: %s" % file)
+
+        formats_map = rgio.BaseFormatsMap()
+        try:
+            replaygain_trackdata, replaygain_albumdata = formats_map.read_gain(file)
+        except Exception as ex:
+            print("  <ERROR reading Replay Gain: %r>" % ex)
+        if replaygain_albumdata:
+            print("Album ReplayGain: gain=%.2f dB, peak=%.8f" % (replaygain_albumdata.gain, replaygain_albumdata.peak))
+        else:
+            print("Album ReplayGain: no information")
+        if replaygain_trackdata:
+            print("Track ReplayGain: gain=%.2f dB, peak=%.8f" % (replaygain_trackdata.gain, replaygain_trackdata.peak))
+        else:
+            print("Track ReplayGain: no information")
 
 if __name__ == "__main__":
    main(sys.argv[1:])
