@@ -43,20 +43,6 @@ def main(argv):
     if len(arguments) == 0:
         errors.append("No files specified")
 
-    if recursive:
-        for path, dirs, files in os.walk("."):
-            print("PATH:" + path)
-
-            #for argument in arguments:
-            #    for f in glob.glob(argument):
-            #        print(f)
-
-            #for f in files:
-            #    print(f)
-    for argument in arguments:
-        for f in glob.glob(argument):
-            print(f)
-
     if len(errors) > 0:
         print("Errors found. Please check the following messages for more information:")
         for error in errors:
@@ -64,29 +50,26 @@ def main(argv):
         print()
         print_usage()
         sys.exit(2)
-    '''
-    try:
-        opts, args = getopt.getopt(argv, "hi:o:", ["ifile=", "ofile="])
-    except getopt.GetoptError:
-        printusage()
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt.lower() in ("-h", "--help"):
-            printusage()
-            sys.exit()
-        elif opt in ("-g", "--replaygain"):
-            commands.add(replayGain)
-    #print('Input file: ', inputfile)
-    #print('Output file: ', outputfile)
-    #print('Files: ', args)
-    '''
+
+    if recursive:
+        for path, dirs, files in os.walk("."):
+            print("PATH: " + path)
+            for argument in arguments:
+                for file in glob.glob(os.path.join(path, argument)):
+                    print("FILE: " + file)
+    else:
+        for argument in arguments:
+            for file in glob.glob(argument):
+                print("FILE: " + file)
+
+    sys.exit(0)
 
 
 def print_usage():
     print('%s [COMMANDS]... [FILES]...' % (os.path.basename(__file__)))
     print('\nSupported commands:')
     print('  -g, --replaygain             Set ReplayGain values')
-    print('  -r, --recursive              Recursively traverse directories')
+    print('  -r, --recursive              Recursively traverse directories (one album per directory)')
 
 
 def replay_gain():
