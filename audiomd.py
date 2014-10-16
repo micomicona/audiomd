@@ -24,13 +24,15 @@ Command-line script to keep your audio files healthy.
 """
 
 import glob
+import magic
+import mutagen
 import os
-import sys
 from rgain import rgcalc
 from rgain import rgio
+import sys
 
 __author__ = 'micomicona'
-
+__mime = magic.Magic(mime=True)
 
 def main(argv):
 
@@ -113,7 +115,12 @@ def process_album(path, arguments, commands):
 
 
 def file_type_supported(file):
-    return True
+    mime_type = str(__mime.from_file(file))
+    if mime_type == "b'audio/x-flac'":
+        return True
+    else:
+        print("Error: Unsupported mime type %s found in %s" % (mime_type, file))
+        return False
 
 
 def print_usage():
@@ -125,8 +132,8 @@ def print_usage():
 
 
 class CommandReplayGain:
-    def __init__(self):
-        print("Calcular ReplayGain")
+    #def __init__(self):
+    #    print("Calcular ReplayGain")
 
     def works_with_whole_album(self):
         return True
@@ -139,9 +146,10 @@ class CommandReplayGain:
         rg = rgcalc.ReplayGain(files, True)
         rg.start()
 
+
 class CommandView:
-    def __init__(self):
-        print("View track information")
+    #def __init__(self):
+        #print("View track information")
 
     def works_with_whole_album(self):
         return False
@@ -165,6 +173,20 @@ class CommandView:
             print("Track ReplayGain: gain=%.2f dB, peak=%.8f" % (replaygain_trackdata.gain, replaygain_trackdata.peak))
         else:
             print("Track ReplayGain: no information")
+
+        #from mutagen.easyid3 import EasyID3
+        #print(EasyID3.valid_keys.keys())
+
+        tags = mutagen.File(file, easy=True)
+        print("TAGS: %s" % str(tags))
+
+        print()
+        #tag = stagger.read_tag(file) # or stagger.default_tag()
+        #try:
+        #    print("Track title: %s" % tag.title)
+        #except stagger.errors.NoTagError as ex:
+        #    print("Track title: N/A")
+
 
 if __name__ == "__main__":
    main(sys.argv[1:])
